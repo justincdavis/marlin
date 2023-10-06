@@ -8,7 +8,7 @@ import joblib
 import cv2
 import numpy as np
 
-from _tracker import MultiBoxTracker
+from ._tracker import MultiBoxTracker
  
 
 class Marlin:
