@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import pathlib
 from queue import Queue, Empty
 from threading import Thread
 
+import joblib
 import cv2
 import numpy as np
 
@@ -13,12 +15,14 @@ class Marlin:
     def __init__(
             self, 
             dnn: callable[[np.ndarray], list[tuple[int, tuple[int, int, int, int], float]]],
+            forest: str | pathlib.Path,
             ncc_threshold: float = 0.3,
             nfeatures: int = 500,
         ) -> None:
         """Use to create a Marlin object."""
         self._tracker = MultiBoxTracker(nfeatures=nfeatures)
         self._dnn = dnn
+        self._forest = joblib.load(forest)
         self._ncc_threshold = ncc_threshold
         self._last_frame = None
         self._use_dnn = True
@@ -72,7 +76,10 @@ class Marlin:
         # Append histograms to the feature vector
         feature_vector = np.concatenate([feature_vector, hist_red.flatten(), hist_green.flatten(), hist_blue.flatten()], axis=None)
 
-        
+        result = self._forest.predict([feature_vector])
+
+        if result[0]:
+            self._use_dnn = True
 
     def _change_dect_worker(self) -> None:
         """Worker for the change detection thread"""
@@ -106,26 +113,3 @@ class Marlin:
             self._last_ncc = min(new_bboxs, key=lambda x: x[2])[2]
             self._use_dnn = self._last_ncc <= self._ncc_threshold
             return new_bboxs
-
-if __name__ == "__main__":
-    def fake_dnn(img: np.ndarray):
-        return [(0, (1400, 400, 1500, 500), 0.9)]
-
-    m = Marlin(fake_dnn, nfeatures=5000)
-
-    vid = cv2.VideoCapture("P2D2.mp4")
-
-    while True:
-        ret, frame = vid.read()
-        display = frame.copy()
-        if not ret:
-            break
-        detections = m(frame)
-        for label, bbox, conf in detections:
-            x1, y1, x2, y2 = bbox
-            cv2.rectangle(display, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.imshow("Frame", display)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    
