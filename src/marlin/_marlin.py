@@ -39,6 +39,16 @@ class Marlin:
 
     def __del__(self) -> None:
         self._stopped = True
+        try:
+            self._dnn_queue.join()
+        except AttributeError:
+            pass
+        try:
+            self._change_dect_queue.join()
+        except AttributeError:
+            pass
+        self._dnn_thread.join()
+        self._change_dect_thread.join()
 
     def _run_dnn(self, frame: np.ndarray) -> list[tuple[int, tuple[int, int, int, int], float]] | None:
         """Run the DNN on the frame"""
