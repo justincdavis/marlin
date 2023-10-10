@@ -128,21 +128,43 @@ class Marlin:
 
     def __call__(self, frame: np.ndarray) -> list[tuple[int, tuple[int, int, int, int], float]]:
         """Run the Marlin algorithm on the (next) frame"""
-        dnn_frame = frame.copy()
-        # this is a fix for allowing PyTorch style shapes (B, C, H, W)
-        # convert the frame to (H, W, C) and assume batch size is one
+        orig_frame = frame.copy()
         if len(frame.shape) == 4:
             frame = np.transpose(frame.squeeze(), (1, 2, 0))
-        change_dect_frame = frame.copy()
-        tracker_frame = frame.copy()
-        self._change_dect_queue.put(change_dect_frame)
-        if self._last_bboxs is None or self._use_dnn:
-            if self._use_dnn:
-                self._use_dnn = False
-            self._dnn_queue.put(dnn_frame)
-            if self._last_bboxs is None:  # first frame, otherwise let it update in the background
-                self._dnn_queue.join()
-            return self._last_bboxs
+        cv_frame = frame.copy() 
+        if self._use_dnn or self._last_bboxs is None:
+            self._use_dnn = False
+            self._last_bboxs = self._dnn(orig_frame)
+            self._last_frame = cv_frame
+            self._tracker.init(self._last_frame, self._last_bboxs)
         else:
-            new_bboxs = self._run_tracker(tracker_frame)
-            return new_bboxs
+            self._last_bboxs = self._tracker.run(cv_frame)
+            self._last_frame = cv_frame
+            self._last_ncc = min(self._last_bboxs, key=lambda x: x[2])[2]
+            self._use_dnn = self._last_ncc <= self._ncc_threshold
+
+        # RUN CHANGE DECT ALWAYS
+        # Step (i): White out objects
+        for label, bbox, conf in self._last_bboxs:
+            x1, y1, x2, y2 = bbox
+            cv2.rectangle(cv_frame, (x1, y1), (x2, y2), (255, 255, 255), -1)
+        # Step (ii): Resize and compute histograms
+        resized_colored_image = cv2.resize(cv_frame, (128, 128))
+        hist_red = cv2.calcHist([resized_colored_image], [0], None, [256], [0, 256])
+        hist_green = cv2.calcHist([resized_colored_image], [1], None, [256], [0, 256])
+        hist_blue = cv2.calcHist([resized_colored_image], [2], None, [256], [0, 256])
+
+        # Step (iii): Flatten the resized_colored_image and append histograms
+        feature_vector = resized_colored_image.reshape(1, -1)  # Flatten as a 1D array
+        feature_vector = feature_vector.astype(float)  # Convert to float
+
+        # Append histograms to the feature vector
+        feature_vector = np.concatenate([feature_vector, hist_red.flatten(), hist_green.flatten(), hist_blue.flatten()], axis=None)
+
+        result = self._forest.predict([feature_vector])
+
+        if result[0]:
+            self._use_dnn = True
+        
+        return self._last_bboxs
+    

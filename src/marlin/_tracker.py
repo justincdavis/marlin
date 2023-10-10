@@ -4,6 +4,56 @@ import cv2
 import numpy as np
 
 
+class LucasKanadeTracker:
+    def __init__(self, nfeatures: int = 500):
+        self.prev_frame = None
+        self.prev_roi = None
+        self.prev_keypoints = None
+        self._orb = cv2.ORB_create(nfeatures=nfeatures)
+
+    def init(self, frame, bounding_box):
+        if len(frame.shape) == 3:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        x1, y1, x2, y2 = bounding_box
+        self.prev_roi = frame[y1:y2, x1:x2]
+        self.prev_frame = frame
+        self.prev_keypoints = self._detect_keypoints(self.prev_roi)
+
+    def update(self, frame):
+        if len(frame.shape) == 3:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        if self.prev_frame is None or self.prev_roi is None or self.prev_keypoints is None:
+            raise Exception("Tracker has not been initialized!")
+
+        bbox = self._track(frame)
+        if bbox is None:
+            self.prev_frame = None
+            self.prev_roi = None
+            self.prev_keypoints = None
+            return None
+
+        self.init(frame, bbox)
+
+        return bbox
+
+    def _detect_keypoints(self, image):
+        keypoints = self._orb.detect(image, None)
+        return np.asarray([kp.pt for kp in keypoints], dtype=np.float32)
+    
+    def _track(self, frame):
+        try:
+            current_keypoints, status, _ = cv2.calcOpticalFlowPyrLK(
+                self.prev_frame, frame, self.prev_keypoints, None)
+        except Exception:
+            return None
+
+        mask = status.ravel() == 1
+        current_keypoints = current_keypoints[mask]
+        x, y, w, h = cv2.boundingRect(current_keypoints)
+
+        return x, y, w, h
+    
+
 class MultiBoxTracker:
     def __init__(self, nfeatures: int = 500):
         self._orb = cv2.ORB_create(nfeatures=nfeatures)
