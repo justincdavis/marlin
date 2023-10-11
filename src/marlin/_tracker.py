@@ -20,11 +20,18 @@ class LucasKanadeTracker:
     def _ncc(img1: np.ndarray, img2: np.ndarray) -> float:
         """Normalized cross correlation between two images"""
         if img1.shape != img2.shape:
-            raise ValueError("Images must have the same dimensions")
+            h1, w1 = img1.shape
+            h2, w2 = img2.shape
+            # print(f"  Image shapes do not match: {img1.shape} != {img2.shape}")
+            # print(f"  Resizing images to ({min(h1, h2)}, {min(w1, w2)})")
+            h = min(h1, h2)
+            w = min(w1, w2)
+            img1 = cv2.resize(img1, (h, w))
+            img2 = cv2.resize(img2, (h, w))
         mean1 = np.mean(img1)
         mean2 = np.mean(img2)
-        std1 = np.std(img1)
-        std2 = np.std(img2)
+        std1 = np.std(img1, ddof=2)
+        std2 = np.std(img2, ddof=2)
         norm1 = (img1 - mean1) / std1
         norm2 = (img2 - mean2) / std2
         area = norm1.shape[0] * norm1.shape[1]
@@ -49,8 +56,8 @@ class LucasKanadeTracker:
             self._prev_frame = None
             self._prev_roi = None
             self._prev_keypoints = None
-            return 0.0, None
-
+            return None
+        
         x1, y1, x2, y2 = bbox
         ncc = self._ncc(self._prev_roi, frame[y1:y2, x1:x2])
         self.init(frame, bbox)
@@ -71,8 +78,9 @@ class LucasKanadeTracker:
         mask = status.ravel() == 1
         current_keypoints = current_keypoints[mask]
         x, y, w, h = cv2.boundingRect(current_keypoints)
+        x1, y1, x2, y2 = x, y, x + w, y + h
 
-        return x, y, w, h
+        return x1, y1, x2, y2
     
 
 class MultiBoxTracker:
@@ -85,7 +93,7 @@ class MultiBoxTracker:
         self._lk_params = lk_params
         self._prev_frame: np.ndarray | None = None
         self._prev_dects: list[tuple[int, tuple[int, int, int, int], float]] | None = None
-        self._trackers = []
+        self._trackers: list[LucasKanadeTracker] = []
     
     def init(self, frame: np.ndarray, detections: list[tuple[int, tuple[int, int, int, int], float]]) -> None:
         """Initialize the tracker"""
@@ -107,10 +115,10 @@ class MultiBoxTracker:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         new_dects = []
         for (object_id, _, _), tracker in zip(self._prev_dects, self._trackers):
-            try:
-                score, bbox = tracker.update(frame)
-            except Exception:
+            data = tracker.update(frame)
+            if data is None:
                 continue
+            score, bbox = data
             new_dects.append((object_id, bbox, score))
         self._prev_frame = frame
         self._prev_dects = new_dects
