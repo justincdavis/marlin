@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import cv2
 import numpy as np
 
@@ -22,8 +24,8 @@ class LucasKanadeTracker:
         if img1.shape != img2.shape:
             h1, w1 = img1.shape
             h2, w2 = img2.shape
-            # print(f"  Image shapes do not match: {img1.shape} != {img2.shape}")
-            # print(f"  Resizing images to ({min(h1, h2)}, {min(w1, w2)})")
+            # # print(f"  Image shapes do not match: {img1.shape} != {img2.shape}")
+            # # print(f"  Resizing images to ({min(h1, h2)}, {min(w1, w2)})")
             h = min(h1, h2)
             w = min(w1, w2)
             img1 = cv2.resize(img1, (h, w))
@@ -38,10 +40,14 @@ class LucasKanadeTracker:
         return (1.0 / area) * np.sum(norm1 * norm2)
 
     def init(self, frame, bounding_box):
+        # print("Starting LK Tracker init")
         if len(frame.shape) == 3:
+            # print("  Converted to gray")
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         x1, y1, x2, y2 = bounding_box
-        self._prev_roi = frame[y1:y2, x1:x2]
+        # print(f"   BBOX: {bounding_box}")
+        self._prev_roi = frame[x1:x2, y1:y2]
+        # print(f"   ROI: {self._prev_roi.shape}")
         self._prev_frame = frame
         self._prev_keypoints = self._detect_keypoints(self._prev_roi)
 
@@ -59,7 +65,7 @@ class LucasKanadeTracker:
             return None
         
         x1, y1, x2, y2 = bbox
-        ncc = self._ncc(self._prev_roi, frame[y1:y2, x1:x2])
+        ncc = self._ncc(self._prev_roi, frame[x1:x2, y1:y2])
         self.init(frame, bbox)
 
         return ncc, bbox
@@ -103,8 +109,26 @@ class MultiBoxTracker:
         self._prev_dects = detections
         self._trackers = []
         for detection in self._prev_dects:
+            # print(f"Detection: {detection}")
             tracker = LucasKanadeTracker()
-            tracker.init(self._prev_frame, detection[1])
+            bbox = detection[1]
+            x1, y1, x2, y2 = bbox
+            x_diff = x2 - x1
+            if x_diff < 10:
+                # print("   Changing x values")
+                offset = math.ceil((10 - x_diff) / 2)
+                x1 = x1 - offset
+                x2 = x2 + offset
+            y_diff = y2 - y1
+            if y_diff < 10:
+                # print("   Changing y values")
+                offset = math.ceil((10 - y_diff) / 2)
+                y1 = y1 - offset
+                y2 = y2 - offset
+            bbox = (x1, y1, x2, y2) 
+            if bbox != detection[1]:
+                # print(f"Changed bbox: {detection[1]} -> {bbox}")
+            tracker.init(self._prev_frame, bbox)
             self._trackers.append(tracker)
 
     def run(self, frame: np.ndarray) -> list[tuple[int, tuple[int, int, int, int], float]]:
