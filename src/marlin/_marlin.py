@@ -32,12 +32,23 @@ class Marlin:
         self._last_ncc: float | None = None
         self._verbose = verbose if verbose is not None else False
 
+    def _get_cv_frame(self) -> np.ndarray:
+        frame = self._cv_frame
+        self._cv_frame = None
+        return frame
+
+    def add_cv_frame(self, frame: np.ndarray) -> None:
+        """Use when the preprocessing of the dnn means errors."""
+        self._cv_frame = frame
+
     def __call__(self, frame: np.ndarray) -> list[tuple[int, tuple[int, int, int, int], float]]:
         """Run the Marlin algorithm on the (next) frame"""
         orig_frame = frame.copy()
         if len(frame.shape) == 4:
             frame = np.transpose(frame.squeeze(), (1, 2, 0))
-        cv_frame = frame.copy() 
+        if self._cv_frame is not None:
+            frame = self._get_cv_frame()
+        cv_frame = frame.copy()
         cd_frame = frame.copy()
         if self._verbose:
             print("Processing new frame:")
