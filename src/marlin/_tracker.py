@@ -44,6 +44,10 @@ class LucasKanadeTracker:
             # print("  Converted to gray")
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         x1, y1, x2, y2 = bounding_box
+        x1 = max(x1, 0)
+        x2 = min(x2, frame.shape[1])
+        y1 = max(y1, 0)
+        y2 = min(y2, frame.shape[0])
         # print(f"   BBOX: {bounding_box}")
         self._prev_roi = frame[x1:x2, y1:y2]
         # print(f"   ROI: {self._prev_roi.shape}")
@@ -131,6 +135,10 @@ class MultiBoxTracker:
             tracker = LucasKanadeTracker()
             bbox = detection[1]
             x1, y1, x2, y2 = bbox
+            x1 = max(x1, 0)
+            x2 = min(x2, frame.shape[1])
+            y1 = max(y1, 0)
+            y2 = min(y2, frame.shape[0])
             x_diff = x2 - x1
             if x_diff < 10:
                 # print("   Changing x values")
