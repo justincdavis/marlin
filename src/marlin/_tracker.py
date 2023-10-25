@@ -24,10 +24,9 @@ class LucasKanadeTracker:
         if img1.shape != img2.shape:
             h1, w1 = img1.shape
             h2, w2 = img2.shape
-            # # print(f"  Image shapes do not match: {img1.shape} != {img2.shape}")
-            # # print(f"  Resizing images to ({min(h1, h2)}, {min(w1, w2)})")
-            h = min(h1, h2)
-            w = min(w1, w2)
+            h, w = (h1, w1) if (h1 * w1) < (h2 * h2) else (h2, w2)
+            # print(f"  Image shapes do not match: {img1.shape} != {img2.shape}")
+            # print(f"Resizing images to: {h, w}")
             img1 = cv2.resize(img1, (h, w))
             img2 = cv2.resize(img2, (h, w))
         mean1 = np.mean(img1)
@@ -65,6 +64,25 @@ class LucasKanadeTracker:
             return None
         
         x1, y1, x2, y2 = bbox
+        x1 = max(x1, 0)
+        x2 = min(x2, frame.shape[1])
+        y1 = max(y1, 0)
+        y2 = min(y2, frame.shape[0])
+        # print(f"bbox: {bbox}")
+        x_diff = x2 - x1
+        if x_diff < 10:
+            # print("   Changing x values")
+            offset = math.ceil((10 - x_diff) / 2)
+            x1 = max(x1 - offset, 0)
+            x2 = x2 + offset
+        y_diff = y2 - y1
+        if y_diff < 10:
+            # print("   Changing y values")
+            offset = math.ceil((10 - y_diff) / 2)
+            y1 = max(y1 - offset, 0)
+            y2 = y2 - offset
+        bbox = (x1, y1, x2, y2) 
+        # print(f"bbox: {bbox}")
         ncc = self._ncc(self._prev_roi, frame[x1:x2, y1:y2])
         self.init(frame, bbox)
 
@@ -117,13 +135,13 @@ class MultiBoxTracker:
             if x_diff < 10:
                 # print("   Changing x values")
                 offset = math.ceil((10 - x_diff) / 2)
-                x1 = x1 - offset
+                x1 = max(x1 - offset, 0)
                 x2 = x2 + offset
             y_diff = y2 - y1
             if y_diff < 10:
                 # print("   Changing y values")
                 offset = math.ceil((10 - y_diff) / 2)
-                y1 = y1 - offset
+                y1 = max(y1 - offset, 0)
                 y2 = y2 - offset
             bbox = (x1, y1, x2, y2) 
             # if bbox != detection[1]:
