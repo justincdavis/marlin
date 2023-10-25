@@ -126,7 +126,7 @@ class MultiBoxTracker:
                 y1 = y1 - offset
                 y2 = y2 - offset
             bbox = (x1, y1, x2, y2) 
-            if bbox != detection[1]:
+            # if bbox != detection[1]:
                 # print(f"Changed bbox: {detection[1]} -> {bbox}")
             tracker.init(self._prev_frame, bbox)
             self._trackers.append(tracker)
