@@ -70,7 +70,7 @@ class LucasKanadeTracker:
             # print("  Converted to gray")
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         x1, y1, x2, y2 = bounding_box
-        print(frame.shape)
+        # print(frame.shape)
         bounding_box = sanitize_bbox(bounding_box, frame.shape[1], frame.shape[0])
         # print(f"   BBOX: {bounding_box}")
         self._prev_roi = frame[x1:x2, y1:y2]
