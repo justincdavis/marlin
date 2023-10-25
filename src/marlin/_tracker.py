@@ -69,9 +69,9 @@ class LucasKanadeTracker:
         if len(frame.shape) == 3:
             # print("  Converted to gray")
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        x1, y1, x2, y2 = bounding_box
         # print(frame.shape)
         bounding_box = sanitize_bbox(bounding_box, frame.shape[1], frame.shape[0])
+        x1, y1, x2, y2 = bounding_box
         # print(f"   BBOX: {bounding_box}")
         self._prev_roi = frame[x1:x2, y1:y2]
         # print(f"   ROI: {self._prev_roi.shape}")
@@ -79,6 +79,7 @@ class LucasKanadeTracker:
         self._prev_keypoints = self._detect_keypoints(self._prev_roi)
 
     def update(self, frame):
+        # print(f"Update: frame size {frame.shape}")
         if len(frame.shape) == 3:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         if self._prev_frame is None or self._prev_roi is None or self._prev_keypoints is None:
@@ -94,8 +95,9 @@ class LucasKanadeTracker:
         x1, y1, x2, y2 = bbox
         # print(f"bbox: {bbox}")
         bbox = sanitize_bbox(bbox, frame.shape[1], frame.shape[0])
+        x1, y1, x2, y2 = bbox
         # print(f"bbox: {bbox}")
-        ncc = self._ncc(self._prev_roi, frame[x1:x2, y1:y2])
+        ncc = self._ncc(self._prev_roi, frame[y1:y2, x1:x2])
         self.init(frame, bbox)
 
         return ncc, bbox
@@ -143,8 +145,9 @@ class MultiBoxTracker:
             tracker = LucasKanadeTracker()
             bbox = detection[1]
             bbox = sanitize_bbox(bbox, frame.shape[1], frame.shape[0])
-            # if bbox != detection[1]:
-            #     print(f"Changed bbox: {detection[1]} -> {bbox}")
+            if bbox != detection[1]:
+                # print(f"Changed bbox: {detection[1]} -> {bbox}")
+                pass
             tracker.init(self._prev_frame, bbox)
             self._trackers.append(tracker)
 
