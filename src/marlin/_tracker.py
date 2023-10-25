@@ -6,6 +6,32 @@ import cv2
 import numpy as np
 
 
+def sanitize_bbox(bbox: tuple[int, int, int, int], width: int, height: int, min_size: int = 10) -> tuple[int, int, int, int]:        
+    def change_pair(cords: tuple[int, int], maxval: int, minval: int, min_size: int = 10) -> tuple[int, int]:
+        c1, c2 = cords
+        counter = 0
+        while counter < 3:
+            diff = c2 - c1
+            if diff < min_size:
+                offset = int((min_size - diff) / 2)
+                if c1 > (minval + offset):
+                    c1 -= offset
+                if c2 < (maxval - offset):
+                    c2 += offset
+            else:
+                break
+            counter += 1
+        return c1, c2
+    x1, y1, x2, y2 = bbox
+    x1 = max(x1, 0)
+    y1 = max(y1, 0)
+    x2 = min(x2, width)
+    y2 = min(y2, width)
+    x1, x2 = change_pair((x1, x2), width, 0)
+    y1, y2 = change_pair((y1, y2), height, 0)
+    return x1, y1, x2, y2
+
+
 class LucasKanadeTracker:
     def __init__(
             self, 
@@ -44,10 +70,8 @@ class LucasKanadeTracker:
             # print("  Converted to gray")
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         x1, y1, x2, y2 = bounding_box
-        x1 = max(x1, 0)
-        x2 = min(x2, frame.shape[1])
-        y1 = max(y1, 0)
-        y2 = min(y2, frame.shape[0])
+        print(frame.shape)
+        bounding_box = sanitize_bbox(bounding_box, frame.shape[1], frame.shape[0])
         # print(f"   BBOX: {bounding_box}")
         self._prev_roi = frame[x1:x2, y1:y2]
         # print(f"   ROI: {self._prev_roi.shape}")
@@ -68,24 +92,8 @@ class LucasKanadeTracker:
             return None
         
         x1, y1, x2, y2 = bbox
-        x1 = max(x1, 0)
-        x2 = min(x2, frame.shape[1])
-        y1 = max(y1, 0)
-        y2 = min(y2, frame.shape[0])
         # print(f"bbox: {bbox}")
-        x_diff = x2 - x1
-        if x_diff < 10:
-            # print("   Changing x values")
-            offset = math.ceil((10 - x_diff) / 2)
-            x1 = max(x1 - offset, 0)
-            x2 = x2 + offset
-        y_diff = y2 - y1
-        if y_diff < 10:
-            # print("   Changing y values")
-            offset = math.ceil((10 - y_diff) / 2)
-            y1 = max(y1 - offset, 0)
-            y2 = y2 - offset
-        bbox = (x1, y1, x2, y2) 
+        bbox = sanitize_bbox(bbox, frame.shape[1], frame.shape[0])
         # print(f"bbox: {bbox}")
         ncc = self._ncc(self._prev_roi, frame[x1:x2, y1:y2])
         self.init(frame, bbox)
@@ -134,26 +142,9 @@ class MultiBoxTracker:
             # print(f"Detection: {detection}")
             tracker = LucasKanadeTracker()
             bbox = detection[1]
-            x1, y1, x2, y2 = bbox
-            x1 = max(x1, 0)
-            x2 = min(x2, frame.shape[1])
-            y1 = max(y1, 0)
-            y2 = min(y2, frame.shape[0])
-            x_diff = x2 - x1
-            if x_diff < 10:
-                # print("   Changing x values")
-                offset = math.ceil((10 - x_diff) / 2)
-                x1 = max(x1 - offset, 0)
-                x2 = x2 + offset
-            y_diff = y2 - y1
-            if y_diff < 10:
-                # print("   Changing y values")
-                offset = math.ceil((10 - y_diff) / 2)
-                y1 = max(y1 - offset, 0)
-                y2 = y2 - offset
-            bbox = (x1, y1, x2, y2) 
+            bbox = sanitize_bbox(bbox, frame.shape[1], frame.shape[0])
             # if bbox != detection[1]:
-                # print(f"Changed bbox: {detection[1]} -> {bbox}")
+            #     print(f"Changed bbox: {detection[1]} -> {bbox}")
             tracker.init(self._prev_frame, bbox)
             self._trackers.append(tracker)
 
